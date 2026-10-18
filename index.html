@@ -32,10 +32,12 @@ summary{min-height:48px;display:flex;align-items:center;padding:0 14px;font-size
 #sum{font-size:.9rem;color:#0b6e4f;font-weight:600;margin:4px 2px}
 .nav button{flex:1;min-height:56px;font-size:1.2rem}
 .small{font-size:.85rem;min-height:40px;padding:6px 12px}
+.lw{display:block;width:100%;min-height:64px;margin:4px 0 6px;font-size:1.35rem;font-weight:700;border-radius:14px;background:#0b6e4f;color:#fff;border:2px solid #084c37;box-shadow:0 3px 8px #0003}.lw:active{background:#084c37}
 .muted{color:#777;font-size:.85rem;margin:4px 2px}
 </style></head><body>
 <header><h1>Português (Portugal): aulas com a Sofia</h1></header>
 <main>
+<button id="lw" class="lw">Last week practice</button>
 <div class="bar scope" id="scope"></div>
 <input type="search" id="q" placeholder="Procurar (PT ou EN)" autocomplete="off" autocapitalize="off">
 <details id="tdet"><summary id="tsum">Tópicos</summary><div class="tp" id="tp"></div></details>
@@ -120,5 +122,6 @@ $('q').oninput=e=>{query=e.target.value;build(false)};
 $('clrWeak').onclick=()=>{if(!weak.size)return;if(confirm('Limpar todas as '+weak.size+' palavras difíceis?')){weak.clear();saveWeak();refresh()}};
 const setM=m=>{mode=m;['mCards','mMC','mType'].forEach(id=>$(id).classList.remove('on'));$({cards:'mCards',mc:'mMC',type:'mType'}[m]).classList.add('on');render()};
 $('mCards').onclick=()=>setM('cards');$('mMC').onclick=()=>setM('mc');$('mType').onclick=()=>setM('type');
+$('lw').onclick=()=>{scope='week';sel.clear();query='';$('q').value='';$('tdet').open=false;refresh();window.scrollTo(0,$('info').getBoundingClientRect().top+window.scrollY-70)};
 refresh();
 </script></body></html>
