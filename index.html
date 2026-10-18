@@ -2,7 +2,7 @@
 <title>Português: flashcards e quiz</title>
 <style>
 *{box-sizing:border-box}
-body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f4f1ea;color:#222;-webkit-text-size-adjust:100%}
+body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#f4f1ea;color:#222;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
 header{background:#0b6e4f;color:#fff;padding:12px 16px}h1{font-size:1.15rem;margin:0}
 main{max-width:640px;margin:auto;padding:10px 12px 24px}
 .bar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
@@ -33,6 +33,11 @@ summary{min-height:48px;display:flex;align-items:center;padding:0 14px;font-size
 .nav button{flex:1;min-height:56px;font-size:1.2rem}
 .small{font-size:.85rem;min-height:40px;padding:6px 12px}
 .lw{display:block;width:100%;min-height:64px;margin:4px 0 6px;font-size:1.35rem;font-weight:700;border-radius:14px;background:#0b6e4f;color:#fff;border:2px solid #084c37;box-shadow:0 3px 8px #0003}.lw:active{background:#084c37}
+.spk{position:absolute;top:4px;left:4px;width:52px;height:52px;min-height:52px;padding:0;font-size:1.6rem;line-height:1;border-radius:26px;border:1px solid #0b6e4f;background:#e6f3ee;color:#0b6e4f}
+.spk[hidden]{display:none}.spk.talk{background:#0b6e4f;color:#fff}
+.vbar button{flex:1 1 0;font-weight:600;min-height:48px}.vbar button.on{background:#0b6e4f;color:#fff}
+#vnote{color:#8a4b00;background:#fff4e0;border:1px solid #f0cf9a;border-radius:8px;padding:6px 10px;font-size:.8rem;margin:4px 0}
+#vnote[hidden]{display:none}
 .muted{color:#777;font-size:.85rem;margin:4px 2px}
 </style></head><body>
 <header><h1>Português (Portugal): aulas com a Sofia</h1></header>
@@ -43,6 +48,8 @@ summary{min-height:48px;display:flex;align-items:center;padding:0 14px;font-size
 <details id="tdet"><summary id="tsum">Tópicos</summary><div class="tp" id="tp"></div></details>
 <div id="sum"></div>
 <div class="bar"><select id="dir" aria-label="Direção"><option value="pe">PT → EN</option><option value="ep">EN → PT</option></select><button id="shuf">Baralhar</button></div>
+<div class="bar vbar"><button id="auto" aria-pressed="false">🔊 Ler em voz alta</button><button id="slow" aria-pressed="false">🐢 Devagar</button></div>
+<div id="vnote" hidden></div>
 <div class="bar"><button id="mCards" class="on">Cartões</button><button id="mMC">Escolha</button><button id="mType">Escrever</button></div>
 <div id="info"></div><div id="app"></div>
 <div class="bar nav"><button id="prev" aria-label="Anterior">◀</button><button id="next" aria-label="Seguinte">▶</button></div>
@@ -94,30 +101,70 @@ const q=c=>$('dir').value==='pe'?c.pt:c.en, a=c=>$('dir').value==='pe'?c.en:c.pt
 function setWeak(c,on){on?weak.add(c.k):weak.delete(c.k);saveWeak();drawScope();if(scope==='weak')$('sum').textContent=`${deck.length} cartões neste baralho (de ${C.length})`;const s=document.querySelector('.star');if(s)s.classList.toggle('on',weak.has(c.k))}
 function starBtn(c){return `<button class="star${weak.has(c.k)?' on':''}" id="st" aria-label="Palavra difícil">★</button>`}
 function bindStar(c){const s=$('st');if(s)s.onclick=e=>{e.stopPropagation();setWeak(c,!weak.has(c.k))}}
+
+/* Voz pt-PT (Web Speech API, sem pedidos externos) */
+const TTS='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
+const NOTE_NOVOZ='Sem voz pt-PT neste telefone. Definicoes > Acessibilidade > Conteudo Falado > Vozes > Portugues (Portugal)';
+let autoOn=store.get('pt_autoread',false)===true,slowOn=store.get('pt_slow',false)===true,ptVoice=null,voicesReady=false,voiceTimer=null,curUtt=null;
+const isPT=v=>/^pt[-_]pt$/i.test((v.lang||'').trim());
+function pickVoice(){if(!TTS)return;let vs=[];try{vs=speechSynthesis.getVoices()||[]}catch(e){}
+const pts=vs.filter(isPT);
+ptVoice=pts.find(v=>v.localService)||pts[0]||null;
+if(vs.length)voicesReady=true;
+showNote()}
+function showNote(){const n=$('vnote');let m='';
+if(!TTS)m='Este navegador não tem voz. Experimenta o Safari ou o Chrome.';
+else if(!ptVoice&&(voicesReady||voiceTimer==='done'))m=NOTE_NOVOZ;
+n.textContent=m;n.hidden=!m}
+function initVoices(){if(!TTS){showNote();return}
+pickVoice();
+try{speechSynthesis.addEventListener('voiceschanged',pickVoice)}catch(e){speechSynthesis.onvoiceschanged=pickVoice}
+setTimeout(()=>{voiceTimer='done';pickVoice()},2000)}
+function ptText(s){return s.replace(/\s*\((with|com)\b[^)]*\)/gi,'').replace(/\.\.\./g,'').replace(/\s*\/\s*/g,', ').replace(/[()]/g,', ').replace(/\s+/g,' ').replace(/,\s*,/g,',').trim()}
+function speak(c,btn){if(!TTS||!c)return;
+try{if(speechSynthesis.speaking||speechSynthesis.pending)speechSynthesis.cancel();
+if(!ptVoice)pickVoice();
+const u=new SpeechSynthesisUtterance(ptText(c.pt));
+u.lang='pt-PT';if(ptVoice)u.voice=ptVoice;
+u.rate=slowOn?0.8:1;u.pitch=1;u.volume=1;
+const off=()=>{document.querySelectorAll('.spk.talk').forEach(b=>b.classList.remove('talk'))};
+u.onstart=()=>{off();if(btn)btn.classList.add('talk')};u.onend=off;
+u.onerror=e=>{off();if(e&&e.error&&e.error!=='interrupted'&&e.error!=='canceled'){const n=$('vnote');n.textContent='Não consegui falar. Toca no altifalante outra vez.';n.hidden=false}};
+curUtt=u;speechSynthesis.speak(u)}catch(e){}}
+const ptVisible=()=>mode==='cards'?(($('dir').value==='pe')!==flipped):$('dir').value==='pe';
+function spkBtn(){return TTS?`<button class="spk" id="sp" aria-label="Ouvir em português" hidden>🔊</button>`:''}
+function bindSpk(c){const s=$('sp');if(!s)return;s.hidden=!ptVisible();s.onclick=e=>{e.stopPropagation();speak(c,s)}}
+function showSpk(c,say){const s=$('sp');if(!s)return;s.hidden=false;if(say&&autoOn)speak(c,s)}
+function autoSay(){if(!autoOn||!deck.length||!ptVisible())return;speak(deck[i],$('sp'))}
+function setToggle(b,on){b.classList.toggle('on',on);b.setAttribute('aria-pressed',on?'true':'false')}
+function unlockSpeech(){if(!TTS)return;try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;u.lang='pt-PT';speechSynthesis.speak(u)}catch(e){}}
 function render(){flipped=false;const c=deck[i];
 if(!c){$('info').textContent='';$('app').innerHTML='<div class="card" style="cursor:default">'+(scope==='weak'?'Ainda não tens palavras difíceis.<small>Marca ★ ou carrega em "Falhei".</small>':'Sem cartões com estes filtros.')+'</div>';return}
 $('info').textContent=`${i+1} / ${deck.length}`+(mode!=='cards'?`  ·  Pontos: ${score}/${done}`:'');
-if(mode==='cards'){$('app').innerHTML=`<div class="card" id="cd">${starBtn(c)}<span id="tx">${esc(q(c))}</span><small>${esc(labelOf(c.t))} · toca para virar</small></div>
+if(mode==='cards'){$('app').innerHTML=`<div class="card" id="cd">${starBtn(c)}${spkBtn()}<span id="tx">${esc(q(c))}</span><small>${esc(labelOf(c.t))} · toca para virar</small></div>
 <div class="bar judge"><button class="miss" id="bMiss">✗ Falhei</button><button class="got" id="bGot">✓ Já sei</button></div>`;
-$('cd').onclick=()=>{flipped=!flipped;$('tx').textContent=flipped?a(c):q(c)};
-$('bMiss').onclick=()=>{setWeak(c,true);nx()};$('bGot').onclick=()=>{setWeak(c,false);nx()};bindStar(c)}
+$('cd').onclick=()=>{flipped=!flipped;$('tx').textContent=flipped?a(c):q(c);const s=$('sp');if(s){s.hidden=!ptVisible();if(flipped&&$('dir').value==='ep'&&autoOn)speak(c,s)}};
+$('bMiss').onclick=()=>{setWeak(c,true);nx()};$('bGot').onclick=()=>{setWeak(c,false);nx()};bindStar(c);bindSpk(c)}
 else if(mode==='mc'){let pool=deck.length>=4?deck:C;let opts=shuffle(pool.filter(x=>a(x)!==a(c))).slice(0,3).concat([c]);shuffle(opts);
-$('app').innerHTML=`<div class="card" style="cursor:default">${starBtn(c)}<span>${esc(q(c))}</span></div><div class="opts">${opts.map((o,n)=>`<button data-n="${n}">${esc(a(o))}</button>`).join('')}</div>`;bindStar(c);
-let ans=false;document.querySelectorAll('.opts button').forEach(b=>b.onclick=()=>{if(ans)return;ans=true;done++;const o=opts[+b.dataset.n];
+$('app').innerHTML=`<div class="card" style="cursor:default">${starBtn(c)}${spkBtn()}<span>${esc(q(c))}</span></div><div class="opts">${opts.map((o,n)=>`<button data-n="${n}">${esc(a(o))}</button>`).join('')}</div>`;bindStar(c);bindSpk(c);
+let ans=false;document.querySelectorAll('.opts button').forEach(b=>b.onclick=()=>{if(ans)return;ans=true;done++;showSpk(c,$('dir').value==='ep');const o=opts[+b.dataset.n];
 if(o===c){score++;b.classList.add('ok')}else{setWeak(c,true);b.classList.add('no');document.querySelectorAll('.opts button').forEach(x=>{if(opts[+x.dataset.n]===c)x.classList.add('ok')})}
 $('info').textContent=`${i+1} / ${deck.length}  ·  Pontos: ${score}/${done}`;setTimeout(nx,1300)})}
-else{$('app').innerHTML=`<div class="card" style="cursor:default">${starBtn(c)}<span>${esc(q(c))}</span></div><p><input id="ti" placeholder="Escreve a resposta" autocomplete="off" autocapitalize="off"></p><div class="bar"><button id="chk" class="on">Verificar</button></div><div id="fb"></div>`;bindStar(c);
+else{$('app').innerHTML=`<div class="card" style="cursor:default">${starBtn(c)}${spkBtn()}<span>${esc(q(c))}</span></div><p><input id="ti" placeholder="Escreve a resposta" autocomplete="off" autocapitalize="off"></p><div class="bar"><button id="chk" class="on">Verificar</button></div><div id="fb"></div>`;bindStar(c);bindSpk(c);
 const ti=$('ti');let ans=false;
-const go=()=>{if(ans){nx();return}ans=true;done++;
+const go=()=>{if(ans){nx();return}ans=true;done++;showSpk(c,$('dir').value==='ep');
 const good=a(c).split(/ \/ |\(|;|, /).map(norm).filter(Boolean);const g=norm(ti.value);
 const ok=g&&(good.some(x=>x===g||x.startsWith(g)&&g.length>3)||norm(a(c))===g);if(ok)score++;else setWeak(c,true);
 const accent=ok&&ti.value.trim()!==a(c)&&$('dir').value==='ep'?' (atenção aos acentos)':'';
 $('fb').innerHTML=(ok?'✅ Certo'+accent:'❌ ')+'<br><b>'+esc(a(c))+'</b>';$('chk').textContent='Seguinte';
 $('info').textContent=`${i+1} / ${deck.length}  ·  Pontos: ${score}/${done}`};
 ti.onkeydown=e=>{if(e.key==='Enter')go()};$('chk').onclick=go}}
-function nx(){if(!deck.length)return;i=(i+1)%deck.length;render()}
-$('next').onclick=nx;$('prev').onclick=()=>{if(!deck.length)return;i=(i-1+deck.length)%deck.length;render()};
+function nx(){if(!deck.length)return;i=(i+1)%deck.length;render();autoSay()}
+$('next').onclick=nx;$('prev').onclick=()=>{if(!deck.length)return;i=(i-1+deck.length)%deck.length;render();autoSay()};
 $('shuf').onclick=()=>build(true);$('dir').onchange=()=>{store.set('pt_filters',{scope,dir:$('dir').value});render()};
+$('auto').onclick=()=>{autoOn=!autoOn;store.set('pt_autoread',autoOn);setToggle($('auto'),autoOn);if(autoOn){unlockSpeech();autoSay()}else if(TTS)speechSynthesis.cancel()};
+$('slow').onclick=()=>{slowOn=!slowOn;store.set('pt_slow',slowOn);setToggle($('slow'),slowOn)};
+setToggle($('auto'),autoOn);setToggle($('slow'),slowOn);initVoices();
 $('q').oninput=e=>{query=e.target.value;build(false)};
 $('clrWeak').onclick=()=>{if(!weak.size)return;if(confirm('Limpar todas as '+weak.size+' palavras difíceis?')){weak.clear();saveWeak();refresh()}};
 const setM=m=>{mode=m;['mCards','mMC','mType'].forEach(id=>$(id).classList.remove('on'));$({cards:'mCards',mc:'mMC',type:'mType'}[m]).classList.add('on');render()};
