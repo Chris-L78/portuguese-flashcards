@@ -38,7 +38,8 @@ summary{min-height:48px;display:flex;align-items:center;padding:0 14px;font-size
 .vbar button{flex:1 1 0;font-weight:600;min-height:48px}.vbar button.on{background:#0b6e4f;color:#fff}
 #vnote{color:#8a4b00;background:#fff4e0;border:1px solid #f0cf9a;border-radius:8px;padding:6px 10px;font-size:.8rem;margin:4px 0}
 #vnote[hidden]{display:none}
-#vnote b{display:block;margin:4px 0 2px}#vnote ol{margin:2px 0 4px 18px;padding:0}
+#vnote b{display:block;margin:8px 0 2px}#vnote p{margin:2px 0}#vnote ol{display:block;list-style:decimal outside;margin:2px 0 6px 22px;padding:0}#vnote li{display:list-item;margin:2px 0}#vnote button{margin-top:4px;font-size:.8rem}
+#vnote,#tx,.card small,#fb,#vdebug{white-space:pre-line}
 #vdebug{color:#888;font-size:.7rem;margin:2px 0}
 .muted{color:#777;font-size:.85rem;margin:4px 2px}
 </style></head><body>
@@ -106,7 +107,11 @@ function bindStar(c){const s=$('st');if(s)s.onclick=e=>{e.stopPropagation();setW
 
 /* Voz pt-PT (Web Speech API, sem pedidos externos) */
 const TTS='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
-const NOTE_NOVOZ='<b>Este aparelho não tem voz de português europeu (pt-PT) instalada.</b>Para não ouvires sotaque do Brasil, a app não fala até instalares a voz de Portugal.<b>Android (Chrome)</b><ol><li>Open Settings and search for "Text-to-speech output".</li><li>Preferred engine: Speech Services by Google.</li><li>Tap the gear > Install voice data > Portuguese (Portugal), and download it.</li><li>Back on that screen, set Language to Portuguese (Portugal).</li><li>Fully close Chrome (swipe it away in recent apps), then reopen this page.</li></ol><b>iPhone / iPad</b><ol><li>Settings > Accessibility > Spoken Content > Voices > Portuguese > Portugal.</li><li>Download Joana, then reopen this page.</li></ol>';
+const STEPS_AND=["Open Settings", "Search \"Text-to-speech output\" and open it", "Set Preferred engine to \"Speech Services by Google\"", "Tap the gear icon", "Tap \"Install voice data\"", "Choose \"Portuguese (Portugal)\" and download", "Set Language to \"Portuguese (Portugal)\"", "Close Chrome completely", "Reopen the app", "Check the grey line says Voz: with a Portugal voice"],STEPS_IOS=["Settings", "Accessibility", "Spoken Content", "Voices", "Portuguese", "Portugal", "Download Joana", "Close Safari and reopen", "Check it says Voz: Joana"];
+const NOTE_HEAD='Este aparelho não tem voz de português europeu (pt-PT) instalada.',NOTE_SUB='Para não ouvires sotaque do Brasil, a app não fala até instalares a voz de Portugal.';
+const olH=a=>'<ol>'+a.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ol>',olT=a=>a.map((x,k)=>(k+1)+'. '+x).join('\n');
+const NOTE_TXT=NOTE_HEAD+'\n'+NOTE_SUB+'\n\nAndroid (Chrome)\n'+olT(STEPS_AND)+'\n\niPhone / iPad\n'+olT(STEPS_IOS);
+const NOTE_NOVOZ='<b>'+NOTE_HEAD+'</b><p>'+NOTE_SUB+'</p><b>Android (Chrome)</b>'+olH(STEPS_AND)+'<b>iPhone / iPad</b>'+olH(STEPS_IOS)+'<button type="button" id="vcopy">Copiar passos</button>';
 let autoOn=store.get('pt_autoread',false)===true,slowOn=store.get('pt_slow',false)===true,ptVoice=null,voicesReady=false,voiceTimer=null,curUtt=null,voiceTries=0;
 const vLang=v=>(v.lang||'').trim().toLowerCase().replace('_','-');
 const isBR=v=>/^pt-br$|^por-bra$/.test(vLang(v))||/brasil|brazil|luciana|felipe|francisca|thalita|antonio|ant\u00f4nio/i.test(v.name||'');
@@ -123,7 +128,8 @@ d.textContent=!TTS?'Voz: sem suporte':ptVoice?'Voz: '+ptVoice.name+' ('+ptVoice.
 function showNote(){const n=$('vnote');let m='';
 if(!TTS)m='Este navegador não tem voz. Experimenta o Safari ou o Chrome.';
 else if(!ptVoice&&voiceTimer==='done')m=NOTE_NOVOZ;
-n.innerHTML=m;n.hidden=!m;showDebug()}
+n.innerHTML=m;n.hidden=!m;const cb=$('vcopy');if(cb)cb.onclick=()=>{const done=()=>{cb.textContent='Copiado ✓'};try{navigator.clipboard.writeText(NOTE_TXT).then(done,()=>{fallbackCopy(NOTE_TXT);done()})}catch(e){fallbackCopy(NOTE_TXT);done()}};showDebug()}
+function fallbackCopy(t){const x=document.createElement('textarea');x.value=t;document.body.append(x);x.select();try{document.execCommand('copy')}catch(e){}x.remove()}
 function retryVoices(){if(ptVoice)return;voiceTries++;pickVoice();
 if(!ptVoice&&voiceTries<12)setTimeout(retryVoices,500);else{voiceTimer='done';showNote()}}
 function initVoices(){if(!TTS){showNote();return}
