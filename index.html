@@ -104,12 +104,15 @@ function bindStar(c){const s=$('st');if(s)s.onclick=e=>{e.stopPropagation();setW
 
 /* Voz pt-PT (Web Speech API, sem pedidos externos) */
 const TTS='speechSynthesis' in window&&'SpeechSynthesisUtterance' in window;
-const NOTE_NOVOZ='Sem voz pt-PT neste telefone. Definicoes > Acessibilidade > Conteudo Falado > Vozes > Portugues (Portugal)';
+const NOTE_NOVOZ='Este aparelho não tem voz de português europeu instalada, por isso o som pode sair com sotaque do Brasil. No iPhone: Definições > Acessibilidade > Conteúdo falado > Vozes > Português (Portugal). No Android: Definições > Texto para voz > Português (Portugal).';
 let autoOn=store.get('pt_autoread',false)===true,slowOn=store.get('pt_slow',false)===true,ptVoice=null,voicesReady=false,voiceTimer=null,curUtt=null;
-const isPT=v=>/^pt[-_]pt$/i.test((v.lang||'').trim());
+const isBR=v=>/^pt[-_]br$|^por[-_]bra$/i.test((v.lang||'').trim())||/brasil|brazil|luciana|felipe|francisca|thalita|antonio|ant\u00f4nio/i.test(v.name||'');
+const isPT=v=>!isBR(v)&&(/^pt[-_]pt$|^por[-_]prt$/i.test((v.lang||'').trim())||/portugal|joana|catarina|raquel|duarte|fernanda|helena/i.test(v.name||'')&&/^pt/i.test(v.lang||''));
+const PREF=[/joana/i,/catarina/i,/raquel/i,/duarte/i,/portugal/i];
+const vScore=v=>{let n=PREF.findIndex(r=>r.test(v.name||''));n=n<0?PREF.length:n;return n*4-(/enhanced|premium|melhorad|natural/i.test(v.name||'')?2:0)-(v.localService?1:0)};
 function pickVoice(){if(!TTS)return;let vs=[];try{vs=speechSynthesis.getVoices()||[]}catch(e){}
 const pts=vs.filter(isPT);
-ptVoice=pts.find(v=>v.localService)||pts[0]||null;
+pts.sort((x,y)=>vScore(x)-vScore(y));ptVoice=pts[0]||null;
 if(vs.length)voicesReady=true;
 showNote()}
 function showNote(){const n=$('vnote');let m='';
